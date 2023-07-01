@@ -1,7 +1,27 @@
+/*
+ * hack.c
+ * enum processes check AV/EDR
+ * author: @cocomelonc
+*/
 #include <windows.h>
 #include <tlhelp32.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+
+void banner() {
+ printf("    ######  ####### #######  ##### \n");  
+ printf("    #     # #       #       #     # \n");
+ printf("    #     # #       #       #       \n");
+ printf("    #     # #####   #####   #       \n");
+ printf("    #     # #       #       #       \n");
+ printf("    #     # #       #       #     # \n");
+ printf("    ######  ####### #        #####  \n");
+ printf("\n");
+ printf("--- MSSPLab https://mssplab.github.io/ ---\n");
+ printf("-------------- @cocomelonc ---------------\n");
+ printf("\n");
+}
 
 // define a struct to store process name and description
 typedef struct {
@@ -58,7 +78,7 @@ void enumProcs() {
   do {
     for (int i = 0; i < process_count; i++) {
       if (_stricmp(process_list[i].process_name, pe32.szExeFile) == 0) {
-        printf("found process: %s - %s =^..^=\n", process_list[i].process_name, process_list[i].description);
+        printf("found process: %s - %s \n", process_list[i].process_name, process_list[i].description);
       }
     }
   } while (Process32Next(hProcessSnap, &pe32));
@@ -67,6 +87,7 @@ void enumProcs() {
 }
 
 int main() {
+  banner();
   readProcListFromFile("processes.txt");
   enumProcs();
   // cleanup allocated memory
