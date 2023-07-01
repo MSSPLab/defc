@@ -3,109 +3,75 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// struct to represent a node in the linked list
-typedef struct Node {
-  char* processName;
-  struct Node* next;
-} Node;
+// define a struct to store process name and description
+typedef struct {
+  char process_name[256];
+  char description[256];
+} Process;
 
-// head of the linked list that will hold the process names
-Node* processList = NULL;
+// array of Process structs, and counter
+Process* process_list;
+int process_count = 0;
 
-// add a new process name to the list
-void addProcToList(char* processName) {
-  Node* newNode = malloc(sizeof(Node));
-  newNode->processName = malloc(strlen(processName) + 1);
-  strcpy(newNode->processName, processName);
-  printf("%s\n", processName);
-  newNode->next = processList;
-  processList = newNode;
-}
-
-// load process names from a file
-void loadProcList() {
-  HANDLE hFile;
-  DWORD dwBytesRead = 0;
-  char readBuffer[256] = {0};
-
-  hFile = CreateFile(TEXT("processes.txt"),  // open processes.txt
-                      GENERIC_READ,          // open for reading
-                      0,                     // do not share
-                      NULL,                  // default security
-                      OPEN_EXISTING,         // existing file only
-                      FILE_ATTRIBUTE_NORMAL, // normal file
-                      NULL);                 // no attr. template
-
-  if (hFile == INVALID_HANDLE_VALUE) {
-    printf("could not open processes.txt.");
+// read process data from a file
+void readProcListFromFile(const char* filename) {
+  FILE* file = fopen(filename, "r");
+  if (file == NULL) {
+    printf("Could not open file %s", filename);
     return;
   }
 
-  // read one line at a time, and add the process name to the list
-  while (ReadFile(hFile, readBuffer, 255, &dwBytesRead, NULL)) {
-    if (dwBytesRead == 0) {
-      break;
-    }
-    readBuffer[strcspn(readBuffer, "\n")] = '\0';
-    addProcToList(readBuffer);
-    ZeroMemory(readBuffer, 256);
+  char line[512];
+  while (fgets(line, sizeof(line), file)) {
+    // reallocate memory for each new process
+    process_list = (Process*)realloc(process_list, (process_count + 1) * sizeof(Process));
+    // parse the line, split it into process name and description
+    char* token = strtok(line, "|");
+    strcpy(process_list[process_count].process_name, token);
+    token = strtok(NULL, "|");
+    strcpy(process_list[process_count].description, token);
+    process_count++;
   }
 
-  CloseHandle(hFile);
+  fclose(file);
 }
 
-// check if a process name is in the list
-int isProcInList(const char* process) {
-  for (Node* node = processList; node != NULL; node = node->next) {
-    if (strcmp(process, node->processName) == 0) {
-      return 1;
-    }
-  }
-
-  return 0;
-}
-
-// enumerate all running processes
+// enumerate running processes
 void enumProcs() {
-  HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-  if (hSnap == INVALID_HANDLE_VALUE) {
-    printf("CreateToolhelp32Snapshot failed\n");
+  HANDLE hProcessSnap;
+  PROCESSENTRY32 pe32;
+
+  hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if (hProcessSnap == INVALID_HANDLE_VALUE) {
+    printf("CreateToolhelp32Snapshot failed.\n");
     return;
   }
 
-  PROCESSENTRY32 pe32;
   pe32.dwSize = sizeof(PROCESSENTRY32);
 
-  if (!Process32First(hSnap, &pe32)) {
-    printf("Process32First failed\n");
-    CloseHandle(hSnap);
+  if (!Process32First(hProcessSnap, &pe32)) {
+    printf("Process32First failed.\n");
+    CloseHandle(hProcessSnap);
     return;
   }
 
   do {
-    if (isProcInList(pe32.szExeFile)) {
-      printf("process found: %s\n", pe32.szExeFile);
+    for (int i = 0; i < process_count; i++) {
+      if (_stricmp(process_list[i].process_name, pe32.szExeFile) == 0) {
+        printf("found process: %s - %s =^..^=\n", process_list[i].process_name, process_list[i].description);
+      }
     }
-  } while (Process32Next(hSnap, &pe32));
+  } while (Process32Next(hProcessSnap, &pe32));
 
-  CloseHandle(hSnap);
-}
-
-// clean up the memory used by the list
-void cleanup() {
-  Node* current = processList;
-  while (current != NULL) {
-    Node* next = current->next;
-    free(current->processName);
-    free(current);
-    current = next;
-  }
+  CloseHandle(hProcessSnap);
 }
 
 int main() {
-  loadProcList();
+  readProcListFromFile("processes.txt");
   enumProcs();
-  cleanup();
-
+  // cleanup allocated memory
+  if (process_list) {
+    free(process_list);
+  }
   return 0;
 }
